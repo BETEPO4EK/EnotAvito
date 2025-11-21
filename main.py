@@ -3,7 +3,7 @@ import time
 import requests
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.fsm.storage.memory import MemoryStorage
 import json
 from datetime import datetime, timezone, timedelta
@@ -209,8 +209,9 @@ async def cmd_resume(message: Message):
 @router.message(Command("status"))
 @router.message(F.text == "📊 Статус")
 async def cmd_status(message: Message):
-    """Статус бота"""
-    status = "✅ Активен" if avito_bot.monitoring_active else "⏸ На паузе"
+    """Статус бота с красивой статистикой"""
+    status_emoji = "✅" if avito_bot.monitoring_active else "⏸️"
+    status_text = "Активен" if avito_bot.monitoring_active else "На паузе"
     
     # Получаем актуальное количество непрочитанных чатов
     unread_chats = avito_bot.get_messenger_chats(unread_only=True)
@@ -218,22 +219,75 @@ async def cmd_status(message: Message):
     unread_count = len(unread_chats)
     total_count = len(all_chats)
     
-    # Получаем текущее время в нужном timezone
+    # Получаем текущее время
     current_time = datetime.now(TIMEZONE).strftime('%H:%M:%S')
     
+    # Формируем красивый статус
     text = f"""
-📊 <b>Статус</b>
+╔══════════════════════════╗
+    📊 <b>СТАТУС БОТА</b>
+╚══════════════════════════╝
 
-Состояние: {status}
-⏱ Интервал: {CHECK_INTERVAL} сек
-💬 Активных чатов: {len(avito_bot.chat_topics)}
-📨 Непрочитанных чатов: {unread_count}
-📬 Всего чатов: {total_count}
-🔍 Отслежено сообщений: {len(avito_bot.seen_messages)}
+🤖 <b>Состояние:</b> {status_emoji} {status_text}
+⏱ <b>Интервал:</b> {CHECK_INTERVAL} сек
 
-<i>Обновлено: {current_time}</i>
+┌─── Avito ───────────────┐
+│ 📨 Непрочитанных: <b>{unread_count}</b>
+│ 📬 Всего диалогов: <b>{total_count}</b>
+└─────────────────────────┘
+
+┌─── Telegram ────────────┐
+│ 💬 Создано тем: <b>{len(avito_bot.chat_topics)}</b>
+│ 🔍 Обработано: <b>{len(avito_bot.seen_messages)}</b>
+└─────────────────────────┘
+
+⏰ Обновлено: {current_time}
 """
-    await message.answer(text, parse_mode='HTML')
+    
+    # Если есть непрочитанные - добавляем кнопки
+    if unread_count > 0:
+        text += f"\n💡 Нажмите на клиента чтобы перейти в чат ↓"
+        
+        # Создаем inline кнопки для каждого непрочитанного чата
+        keyboard = []
+        
+        for chat in unread_chats[:10]:  # Максимум 10 чатов
+            chat_id = chat.get('id')
+            chat_info = extract_chat_info(chat)
+            user_name = chat_info['user_name']
+            item_title = chat_info['item_title'][:20]  # Обрезаем название товара
+            
+            # Если для этого чата уже создана тема
+            if chat_id in avito_bot.chat_topics:
+                topic_id = avito_bot.chat_topics[chat_id]
+                # Создаем кнопку с ссылкой на тему
+                button_text = f"💬 {user_name} · {item_title}"
+                # URL для перехода в тему: https://t.me/c/{chat_id без -100}/{topic_id}
+                group_id = str(TELEGRAM_GROUP_ID)[4:]  # Убираем -100 из начала
+                topic_url = f"https://t.me/c/{group_id}/{topic_id}"
+                
+                keyboard.append([InlineKeyboardButton(
+                    text=button_text,
+                    url=topic_url
+                )])
+            else:
+                # Если тема еще не создана, показываем info кнопку
+                button_text = f"🆕 {user_name} · {item_title}"
+                keyboard.append([InlineKeyboardButton(
+                    text=button_text,
+                    callback_data=f"new_chat:{chat_id}"
+                )])
+        
+        # Добавляем кнопку обновления
+        keyboard.append([InlineKeyboardButton(
+            text="🔄 Обновить статистику",
+            callback_data="refresh_status"
+        )])
+        
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        await message.answer(text, parse_mode='HTML', reply_markup=reply_markup)
+    else:
+        await message.answer(text, parse_mode='HTML')
 
 @router.message(F.chat.type == "supergroup", F.message_thread_id)
 async def handle_group_message(message: Message):
