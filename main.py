@@ -212,6 +212,12 @@ async def cmd_status(message: Message):
     """Статус бота"""
     status = "✅ Активен" if avito_bot.monitoring_active else "⏸ На паузе"
     
+    # Получаем актуальное количество непрочитанных чатов
+    unread_chats = avito_bot.get_messenger_chats(unread_only=True)
+    all_chats = avito_bot.get_messenger_chats(unread_only=False)
+    unread_count = len(unread_chats)
+    total_count = len(all_chats)
+    
     # Получаем текущее время в нужном timezone
     current_time = datetime.now(TIMEZONE).strftime('%H:%M:%S')
     
@@ -221,7 +227,8 @@ async def cmd_status(message: Message):
 Состояние: {status}
 ⏱ Интервал: {CHECK_INTERVAL} сек
 💬 Активных чатов: {len(avito_bot.chat_topics)}
-📨 Непрочитанных: {avito_bot.unread_chats_count}
+📨 Непрочитанных чатов: {unread_count}
+📬 Всего чатов: {total_count}
 🔍 Отслежено сообщений: {len(avito_bot.seen_messages)}
 
 <i>Обновлено: {current_time}</i>
@@ -251,7 +258,6 @@ async def handle_group_message(message: Message):
     if message.text:
         if avito_bot.send_message_to_avito(avito_chat_id, message.text):
             await message.answer("✅")
-            
         else:
             await message.answer("❌ Ошибка отправки в Авито")
 
@@ -299,7 +305,7 @@ async def check_new_messages(manual=False, reply_to=None):
                     
                     if topic_id:
                         await send_message_to_topic(topic_id, msg, chat_info)
-                        #avito_bot.mark_as_read(chat_id)
+                        
         
         if manual and reply_to:
             if new_messages_count == 0:
