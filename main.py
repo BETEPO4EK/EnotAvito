@@ -6,7 +6,10 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# Настройка timezone (МСК = UTC+3)
+TIMEZONE = timezone(timedelta(hours=3))
 
 # Конфигурация
 AVITO_CLIENT_ID = "mUXlUUeDC-zE8SldLG6M"
@@ -110,7 +113,7 @@ class AvitoBot:
             'message': {'text': text},
             'type': 'text'
         }
-
+        
         avito_bot.mark_as_read(chat_id)
         
         try:
@@ -209,6 +212,9 @@ async def cmd_status(message: Message):
     """Статус бота"""
     status = "✅ Активен" if avito_bot.monitoring_active else "⏸ На паузе"
     
+    # Получаем текущее время в нужном timezone
+    current_time = datetime.now(TIMEZONE).strftime('%H:%M:%S')
+    
     text = f"""
 📊 <b>Статус</b>
 
@@ -218,7 +224,7 @@ async def cmd_status(message: Message):
 📨 Непрочитанных: {avito_bot.unread_chats_count}
 🔍 Отслежено сообщений: {len(avito_bot.seen_messages)}
 
-<i>Обновлено: {datetime.now().strftime('%H:%M:%S')}</i>
+<i>Обновлено: {current_time}</i>
 """
     await message.answer(text, parse_mode='HTML')
 
@@ -245,6 +251,7 @@ async def handle_group_message(message: Message):
     if message.text:
         if avito_bot.send_message_to_avito(avito_chat_id, message.text):
             await message.answer("✅")
+            
         else:
             await message.answer("❌ Ошибка отправки в Авито")
 
@@ -376,7 +383,8 @@ async def send_message_to_topic(topic_id, message, chat_info):
     msg_time = message.get('created', 0)
     if msg_time:
         try:
-            dt = datetime.fromtimestamp(msg_time)
+            # Конвертируем timestamp в нужный timezone
+            dt = datetime.fromtimestamp(msg_time, tz=TIMEZONE)
             time_str = dt.strftime('%H:%M')
         except:
             time_str = ''
