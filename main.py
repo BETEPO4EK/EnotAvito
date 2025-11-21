@@ -290,7 +290,7 @@ async def check_new_messages(manual=False, reply_to=None):
                     
                     if topic_id:
                         await send_message_to_topic(topic_id, msg, chat_info)
-                        avito_bot.mark_as_read(chat_id)
+                        #avito_bot.mark_as_read(chat_id)
         
         if manual and reply_to:
             if new_messages_count == 0:
