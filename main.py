@@ -110,6 +110,8 @@ class AvitoBot:
             'message': {'text': text},
             'type': 'text'
         }
+
+        avito_bot.mark_as_read(chat_id)
         
         try:
             response = requests.post(url, headers=headers, json=data)
